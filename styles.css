@@ -101,3 +101,21 @@ label.lbl{display:block;color:var(--muted);font-size:12px;margin-top:14px;text-t
 .hidden{display:none!important}
 .fade{animation:fade .35s ease}
 @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1}}
+
+/* chakra + element profile */
+.legend{font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400;margin-left:8px}
+.chakra{margin-top:12px}
+.clab{display:flex;align-items:center;gap:8px;font-size:14px;margin-bottom:5px}
+.cdot{width:12px;height:12px;border-radius:50%;flex:none;box-shadow:0 0 6px rgba(0,0,0,.35)}
+.clvl{margin-left:auto;font-size:12px}
+.ctrack{height:7px;background:var(--bg2);border-radius:6px;overflow:hidden;margin-top:4px}
+.ctrack.vib{height:5px;margin-top:3px}
+.cfill{height:100%;border-radius:6px}
+.elements{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:6px}
+.elem{background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:10px 6px;text-align:center}
+.eglyph{font-size:20px;line-height:1}
+.ename{font-size:11px;color:var(--muted);margin:3px 0 6px}
+.etrack{height:5px;background:var(--card);border-radius:4px;overflow:hidden;margin-top:3px}
+.efill{height:100%;background:var(--grad)}
+.efill.alt{background:linear-gradient(90deg,#26C6DA,#7E57C2)}
+.evals{font-size:10px;margin-top:5px}

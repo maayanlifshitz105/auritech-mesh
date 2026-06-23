@@ -21,9 +21,24 @@ async function api(path, opts = {}) {
 function esc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function grad(colors){ const c = (colors&&colors.length>=2)?colors:['#7c4dff','#ff6fb5']; return `linear-gradient(135deg,${c[0]},${c[1]})`; }
 function avatar(u, size){
-  if (u.photo) return `<div class="avatar" style="width:${size}px;height:${size}px;background-image:url('${u.photo}');background-size:cover;background-position:center"></div>`;
   const c = u.reading ? u.reading.auraColors : null;
-  return `<div class="avatar" style="width:${size}px;height:${size}px;background:${grad(c)};font-size:${size*0.4}px">${esc((u.name||'?')[0])}</div>`;
+  const initial = esc((u.name||'?')[0]);
+  const img = u.photo ? `<img src="${u.photo}" loading="lazy" onerror="this.remove()" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">` : '';
+  return `<div class="avatar" style="position:relative;overflow:hidden;width:${size}px;height:${size}px;background:${grad(c)};font-size:${Math.round(size*0.4)}px">${initial}${img}</div>`;
+}
+function bar2(color,a,b){
+  return `<div class="ctrack"><div class="cfill" style="width:${a}%;background:${color}"></div></div>`+
+         `<div class="ctrack vib"><div class="cfill" style="width:${b}%;background:${color};opacity:.5"></div></div>`;
+}
+function auraDetail(r){
+  const chakras=r.chakras||[], elements=r.elements||[];
+  return `
+  ${chakras.length?`<div class="section"><h3>Chakra profile <span class="legend">development · vibrancy</span></h3>
+    ${chakras.map(c=>`<div class="chakra"><div class="clab"><span class="cdot" style="background:${c.color}"></span><b>${esc(c.name)}</b><span class="muted clvl">${c.development} · ${c.vibrancy}</span></div>${bar2(c.color,c.development,c.vibrancy)}</div>`).join('')}
+  </div>`:''}
+  ${elements.length?`<div class="section"><h3>Elemental balance <span class="legend">mastery · balance</span></h3>
+    <div class="elements">${elements.map(e=>`<div class="elem"><div class="eglyph">${e.glyph}</div><div class="ename">${esc(e.name)}</div><div class="etrack"><div class="efill" style="width:${e.mastery}%"></div></div><div class="etrack"><div class="efill alt" style="width:${e.balance}%"></div></div><div class="evals muted">${e.mastery} · ${e.balance}</div></div>`).join('')}</div>
+  </div>`:''}`;
 }
 
 function boot(){
@@ -130,6 +145,7 @@ function revealReading(r, done){
     <div class="auraName">${esc(r.headline||'')}</div>
     <p class="muted" style="margin-top:10px">${esc(r.summary||'')}</p>
     <div style="margin:6px 0">${(r.personality||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div>
+    <div style="width:100%;text-align:left">${auraDetail(r)}</div>
     <button class="btn" id="done">Enter Auritech Mesh →</button>
   </div>`;
   document.getElementById('done').onclick = done;
@@ -170,7 +186,7 @@ async function renderDiscover(){
         <div class="card fade">
           <div class="reso"><b>${u.resonance||'—'}%</b><span>resonance</span></div>
           <div class="hero">
-            ${u.photo?`<img src="${u.photo}"/>`:`<div class="heroGrad" style="background:${grad(u.reading.auraColors)}"></div>`}
+            <div class="heroGrad" style="background:${grad(u.reading.auraColors)}"></div>${u.photo?`<img src="${u.photo}" loading="lazy" onerror="this.remove()"/>`:''}
             <div class="meta">
               <div class="name">${esc(u.name)}${u.age?`, ${u.age}`:''}</div>
               <div class="auraName">${esc(u.reading.auraName)}</div>
@@ -232,9 +248,7 @@ function renderProfile(){
     <div class="section"><h3>Aura reading</h3><p style="margin:8px 0 0">${esc(r.summary||'')}</p>
       <div style="margin-top:8px">${(r.personality||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div></div>
     <div class="section"><h3>Love style</h3><p style="margin:8px 0 0">${esc(r.loveStyle||'')}</p></div>
-    <div class="section bars"><h3>Energy field</h3>
-      ${ENERGY.map(k=>`<div class="bar"><div class="lab"><span>${k}</span><span class="muted">${Math.round(r.energy?.[k]??50)}</span></div><div class="track"><div class="fill" style="width:${Math.round(r.energy?.[k]??50)}%"></div></div></div>`).join('')}
-    </div>
+    ${auraDetail(r)}
     <button class="btn alt" id="rescan">Re-scan my aura</button>
     <button class="btn ghost" id="logout">Log out</button>
   </div>`;
