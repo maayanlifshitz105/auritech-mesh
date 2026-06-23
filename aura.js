@@ -2,6 +2,9 @@
 // If ANTHROPIC_API_KEY is set, the reading comes from Claude vision; otherwise a
 // deterministic local "mock" reading is generated so the app is fully usable offline.
 const crypto = require('crypto');
+let jpegLib = null, PngLib = null;
+try { jpegLib = require('jpeg-js'); } catch (e) {}
+try { PngLib = require('pngjs').PNG; } catch (e) {}
 
 const ENERGY_KEYS = ['warmth', 'openness', 'intensity', 'groundedness', 'playfulness', 'depth', 'spark'];
 const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-6';
@@ -43,6 +46,54 @@ function clamp(n) { return Math.max(0, Math.min(100, Math.round(n))); }
 function num(v, def) { return (typeof v === 'number' && isFinite(v)) ? clamp(v) : def; }
 function pick(arr, n) { return arr[n % arr.length]; }
 
+function rgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0;
+  if (d) { if (mx === r) h = ((g - b) / d) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4; h *= 60; if (h < 0) h += 360; }
+  return [h, mx ? d / mx : 0, mx];
+}
+function hueToChakra(h) {
+  if (h < 15 || h >= 345) return 0; if (h < 45) return 1; if (h < 70) return 2;
+  if (h < 160) return 3; if (h < 250) return 4; if (h < 280) return 5; return 6;
+}
+function decodeImage(buffer, mediaType) {
+  try {
+    if (/png/i.test(mediaType || '') && PngLib) { const p = PngLib.sync.read(buffer); return { w: p.width, h: p.height, data: p.data }; }
+    if (jpegLib) { const j = jpegLib.decode(buffer, { useTArray: true, maxMemoryUsageInMB: 512 }); return { w: j.width, h: j.height, data: j.data }; }
+  } catch (e) {}
+  return null;
+}
+// Chakra + element profile computed from the ACTUAL colours in the photo.
+// development = share of chromatic energy in that chakra's colour band;
+// vibrancy = average saturation x brightness of that band's pixels.
+function colorExtras(buffer, mediaType) {
+  const img = decodeImage(buffer, mediaType);
+  if (!img) return null;
+  const { w, h, data } = img;
+  const x0 = Math.floor(w * 0.15), x1 = Math.floor(w * 0.85), y0 = Math.floor(h * 0.15), y1 = Math.floor(h * 0.85);
+  const E = new Array(7).fill(0), SV = new Array(7).fill(0), C = new Array(7).fill(0);
+  let totalV = 0, totalSV = 0, n = 0;
+  const step = Math.max(1, Math.floor(Math.sqrt(Math.max(1, (x1 - x0) * (y1 - y0)) / 30000)));
+  for (let y = y0; y < y1; y += step) for (let x = x0; x < x1; x += step) {
+    const i = (y * w + x) * 4; const [hue, s, v] = rgbToHsv(data[i], data[i + 1], data[i + 2]);
+    const wgt = s * v, band = hueToChakra(hue);
+    E[band] += wgt; SV[band] += wgt; C[band]++; totalV += v; totalSV += wgt; n++;
+  }
+  const tot = E.reduce((a, b) => a + b, 0) + 1e-6;
+  const chakras = CHAKRAS.map((c, i) => ({ ...c,
+    development: clamp(100 * (1 - Math.exp(-(E[i] / tot) * 7))),
+    vibrancy: clamp((C[i] ? SV[i] / C[i] : 0) * 170) }));
+  const warm = (E[0] + E[1] + E[2]) / tot, cool = E[4] / tot, greenE = E[3] / tot, violetE = (E[5] + E[6]) / tot;
+  const meanV = n ? totalV / n : 0.5, meanSV = n ? totalSV / n : 0;
+  const raw = { fire: 100 * (1 - Math.exp(-warm * 5)), water: 100 * (1 - Math.exp(-cool * 7)),
+    air: meanV * 100, earth: 60 * (1 - Math.exp(-greenE * 7)) + (1 - meanSV) * 40,
+    space: 60 * (1 - Math.exp(-violetE * 7)) + (1 - meanV) * 40 };
+  const mast = ELEMENTS.map(e => raw[e.key]); const avg = mast.reduce((a, b) => a + b, 0) / 5;
+  const elements = ELEMENTS.map((e, i) => ({ ...e, mastery: clamp(mast[i]), balance: clamp(100 - Math.abs(mast[i] - avg)) }));
+  return { chakras, elements };
+}
+
 // Deterministic chakra + element profile from any seed string.
 function profileExtras(seedStr) {
   const a = bytesFrom(seedStr + '|chakra');
@@ -75,7 +126,7 @@ function ensureExtras(reading, seedStr) {
   return reading;
 }
 
-function mockReading(buffer) {
+function mockReading(buffer, mediaType = 'image/jpeg') {
   const h = bytesFrom(buffer.toString('base64').slice(0, 64));
   const palette = pick(AURA_PALETTES, h[0]);
   const energy = {};
@@ -95,7 +146,9 @@ function mockReading(buffer) {
     energy,
     _source: 'mock'
   };
-  return ensureExtras(reading, buffer.toString('base64').slice(0, 96));
+  const ex = colorExtras(buffer, mediaType) || profileExtras(buffer.toString('base64').slice(0, 96));
+  reading.chakras = ex.chakras; reading.elements = ex.elements;
+  return reading;
 }
 
 function extractJson(text) {
@@ -146,7 +199,7 @@ mastery = command of that element's qualities; balance = how harmonized it is wi
 
 async function generateReading(buffer, mediaType = 'image/jpeg') {
   const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return mockReading(buffer);
+  if (!key) return mockReading(buffer, mediaType);
   const seed = buffer.toString('base64').slice(0, 96);
   try {
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
@@ -167,10 +220,12 @@ async function generateReading(buffer, mediaType = 'image/jpeg') {
     ENERGY_KEYS.forEach(k => { if (typeof reading.energy[k] !== 'number') reading.energy[k] = 50; });
     reading.auraColors = (reading.auraColors && reading.auraColors.length) ? reading.auraColors.slice(0, 2) : ['#7C4DFF', '#FF6FB5'];
     reading._source = 'claude';
-    return ensureExtras(reading, seed);
+    const ex = colorExtras(buffer, mediaType) || profileExtras(seed);
+    reading.chakras = ex.chakras; reading.elements = ex.elements;
+    return reading;
   } catch (e) {
     console.error('aura reading fell back to mock:', e.message);
-    return mockReading(buffer);
+    return mockReading(buffer, mediaType);
   }
 }
 
