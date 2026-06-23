@@ -120,7 +120,7 @@ app.get('/api/discover', auth, (req, res) => {
   const wantGender = me.seeking;
   let candidates = db.users.filter(u => u.id !== me.id && u.reading);
   candidates = candidates.filter(u => !actedOn(me.id, u.id));
-  if (wantGender) candidates = candidates.filter(u => !u.gender || u.gender === wantGender);
+  if (wantGender && wantGender !== 'everyone') candidates = candidates.filter(u => !u.gender || u.gender === wantGender);
   const list = candidates.map(u => publicUser(u, me))
     .sort((a, b) => (b.resonance || 0) - (a.resonance || 0));
   res.json({ candidates: list });
