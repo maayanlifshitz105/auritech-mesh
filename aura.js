@@ -64,31 +64,47 @@ function decodeImage(buffer, mediaType) {
   } catch (e) {}
   return null;
 }
-// Chakra + element profile computed from the ACTUAL colours in the photo.
-// development = share of chromatic energy in that chakra's colour band;
-// vibrancy = average saturation x brightness of that band's pixels.
+// Calibrated chakra + element profile from the ACTUAL colours in the photo.
+// Research tricks applied: (A) Shades-of-Gray white balance to remove the
+// lighting cast; (B) full frame + soft Gaussian band-assignment (each colour
+// bleeds into neighbouring chakras instead of a hard cutoff); (C) a small floor
+// so no chakra reads a hard zero. development = share of chromatic energy in the
+// band; vibrancy = brightness of that band's colour.
+const BAND_CENTER = [0, 30, 55, 115, 200, 260, 300]; // perceptual hue centres per chakra
+function circHue(a, b) { const d = Math.abs(a - b); return Math.min(d, 360 - d); }
+function wbScale(data, w, h) { // partial Shades-of-Gray (p=6), strength 0.6
+  let sr = 0, sg = 0, sb = 0, n = 0; const st = Math.max(1, Math.floor(Math.sqrt(w * h / 20000)));
+  for (let y = 0; y < h; y += st) for (let x = 0; x < w; x += st) { const i = (y * w + x) * 4; sr += data[i] ** 6; sg += data[i + 1] ** 6; sb += data[i + 2] ** 6; n++; }
+  const nr = (sr / n) ** (1 / 6), ng = (sg / n) ** (1 / 6), nb = (sb / n) ** (1 / 6), gray = (nr + ng + nb) / 3, S = 0.6;
+  return [1 + S * (gray / (nr + 1e-6) - 1), 1 + S * (gray / (ng + 1e-6) - 1), 1 + S * (gray / (nb + 1e-6) - 1)];
+}
 function colorExtras(buffer, mediaType) {
   const img = decodeImage(buffer, mediaType);
   if (!img) return null;
   const { w, h, data } = img;
-  const x0 = Math.floor(w * 0.15), x1 = Math.floor(w * 0.85), y0 = Math.floor(h * 0.15), y1 = Math.floor(h * 0.85);
-  const E = new Array(7).fill(0), SV = new Array(7).fill(0), C = new Array(7).fill(0);
-  let totalV = 0, totalSV = 0, n = 0;
-  const step = Math.max(1, Math.floor(Math.sqrt(Math.max(1, (x1 - x0) * (y1 - y0)) / 30000)));
+  const sc = wbScale(data, w, h);                                   // (A) white balance
+  const x0 = Math.floor(w * 0.05), x1 = Math.floor(w * 0.95), y0 = Math.floor(h * 0.05), y1 = Math.floor(h * 0.95);
+  const E = new Array(7).fill(0), VW = new Array(7).fill(0);
+  let totalV = 0, totalSV = 0, n = 0; const SIG = 42, FLOOR = 8;
+  const step = Math.max(1, Math.floor(Math.sqrt(Math.max(1, (x1 - x0) * (y1 - y0)) / 40000)));
   for (let y = y0; y < y1; y += step) for (let x = x0; x < x1; x += step) {
-    const i = (y * w + x) * 4; const [hue, s, v] = rgbToHsv(data[i], data[i + 1], data[i + 2]);
-    const wgt = s * v, band = hueToChakra(hue);
-    E[band] += wgt; SV[band] += wgt; C[band]++; totalV += v; totalSV += wgt; n++;
+    const i = (y * w + x) * 4;
+    const r = Math.min(255, data[i] * sc[0]), g = Math.min(255, data[i + 1] * sc[1]), b = Math.min(255, data[i + 2] * sc[2]);
+    const [hue, s, v] = rgbToHsv(r, g, b); const wgt = s * v;
+    const G = new Array(7); let sum = 0;
+    for (let k = 0; k < 7; k++) { G[k] = Math.exp(-(circHue(hue, BAND_CENTER[k]) ** 2) / (2 * SIG * SIG)); sum += G[k]; }
+    for (let k = 0; k < 7; k++) { const cw = wgt * G[k] / sum; E[k] += cw; VW[k] += cw * v; }   // (B) soft assign
+    totalV += v; totalSV += wgt; n++;
   }
   const tot = E.reduce((a, b) => a + b, 0) + 1e-6;
   const chakras = CHAKRAS.map((c, i) => ({ ...c,
-    development: clamp(100 * (1 - Math.exp(-(E[i] / tot) * 7))),
-    vibrancy: clamp((C[i] ? SV[i] / C[i] : 0) * 170) }));
+    development: clamp(Math.max(FLOOR, 100 * (1 - Math.exp(-(E[i] / tot) * 9)))),                 // (C) floor
+    vibrancy: clamp((E[i] ? VW[i] / E[i] : 0) * 150) }));
   const warm = (E[0] + E[1] + E[2]) / tot, cool = E[4] / tot, greenE = E[3] / tot, violetE = (E[5] + E[6]) / tot;
   const meanV = n ? totalV / n : 0.5, meanSV = n ? totalSV / n : 0;
-  const raw = { fire: 100 * (1 - Math.exp(-warm * 5)), water: 100 * (1 - Math.exp(-cool * 7)),
-    air: meanV * 100, earth: 60 * (1 - Math.exp(-greenE * 7)) + (1 - meanSV) * 40,
-    space: 60 * (1 - Math.exp(-violetE * 7)) + (1 - meanV) * 40 };
+  const raw = { fire: 100 * (1 - Math.exp(-warm * 4)), water: 100 * (1 - Math.exp(-cool * 8)),
+    air: meanV * 100, earth: 55 * (1 - Math.exp(-greenE * 8)) + (1 - meanSV) * 45,
+    space: 55 * (1 - Math.exp(-violetE * 8)) + (1 - meanV) * 45 };
   const mast = ELEMENTS.map(e => raw[e.key]); const avg = mast.reduce((a, b) => a + b, 0) / 5;
   const elements = ELEMENTS.map((e, i) => ({ ...e, mastery: clamp(mast[i]), balance: clamp(100 - Math.abs(mast[i] - avg)) }));
   return { chakras, elements };
