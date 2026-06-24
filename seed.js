@@ -71,6 +71,27 @@ module.exports = function seedDemo(db, save) {
       createdAt: Date.now()
     });
   });
+  // Persistent demo LOGIN account (recreated on every boot so it survives free-tier restarts).
+  const dx = profileExtras('Maayan|demo|velvet');
+  db.users.push({
+    id: db.seq++, email: 'demo@auritechmesh.app',
+    passwordHash: '$2b$10$LMMl2M3P96DSCzfHIvVI5.Oh96fZjH21ppIXcjEr4IU1DrEa3PnsG', // password: aura1234
+    demo: false, name: 'Maayan', age: 30, gender: 'woman', seeking: 'everyone',
+    bio: 'Founder of Auritech Mesh ✦', photo: null,
+    reading: {
+      auraName: 'The Velvet Storm', auraColors: ['#7E57C2', '#26C6DA'],
+      headline: 'Tender on the outside, electric within',
+      summary: 'Your aura swirls violet and teal — sensitive and intense at once. You feel everything, beautifully.',
+      temperament: 'Deeply feeling, with a quick, electric mind.',
+      personality: ['intense', 'imaginative', 'devoted', 'expressive', 'introspective'],
+      strengths: ['intense', 'devoted', 'introspective'],
+      loveStyle: 'You connect slowly, then completely.',
+      vibe: '#7E57C2 meets #26C6DA',
+      energy: { warmth: 72, openness: 74, intensity: 80, groundedness: 48, playfulness: 60, depth: 86, spark: 70 },
+      chakras: dx.chakras, elements: dx.elements, _source: 'seed'
+    },
+    createdAt: Date.now()
+  });
   save();
-  console.log('Seeded', DEMOS.length, 'demo profiles with AI portraits + auric profiles.');
+  console.log('Seeded', DEMOS.length, 'demo profiles + 1 login account.');
 };
