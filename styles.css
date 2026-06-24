@@ -119,3 +119,13 @@ label.lbl{display:block;color:var(--muted);font-size:12px;margin-top:14px;text-t
 .efill{height:100%;background:var(--grad)}
 .efill.alt{background:linear-gradient(90deg,#26C6DA,#7E57C2)}
 .evals{font-size:10px;margin-top:5px}
+
+/* dual chakra comparison (color vs semantic) */
+.align{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:8px 12px;margin:4px 0 12px;font-size:13px}
+.chakra2{margin-top:14px}
+.qual{margin-left:auto;font-size:11px;color:var(--accent);font-style:italic}
+.drow{display:flex;align-items:center;gap:8px;margin-top:4px}
+.dtag{font-size:9px;color:var(--muted);width:56px;text-transform:uppercase;letter-spacing:.5px;flex:none;text-align:right}
+.drow .ctrack{flex:1;margin-top:0}
+.dval{font-size:11px;color:var(--muted);width:26px;text-align:right;flex:none}
+.hint{margin-top:10px;font-size:12px}

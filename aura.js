@@ -142,6 +142,17 @@ function ensureExtras(reading, seedStr) {
   return reading;
 }
 
+// Map Claude's face/vibe chakra read onto the canonical 7 (Method B).
+function coerceSemantic(arr) {
+  if (!Array.isArray(arr)) return null;
+  return CHAKRAS.map((c) => {
+    const got = arr.find(x => x && (x.key === c.key ||
+      (typeof x.name === 'string' && x.name.toLowerCase().includes(c.name.toLowerCase().split(' ')[0]))));
+    return { ...c, development: num(got && got.development, 50), vibrancy: num(got && got.vibrancy, 50),
+      quality: (got && typeof got.quality === 'string') ? got.quality.slice(0, 24) : '' };
+  });
+}
+
 function mockReading(buffer, mediaType = 'image/jpeg') {
   const h = bytesFrom(buffer.toString('base64').slice(0, 64));
   const palette = pick(AURA_PALETTES, h[0]);
@@ -164,6 +175,7 @@ function mockReading(buffer, mediaType = 'image/jpeg') {
   };
   const ex = colorExtras(buffer, mediaType) || profileExtras(buffer.toString('base64').slice(0, 96));
   reading.chakras = ex.chakras; reading.elements = ex.elements;
+  reading.chakrasSemantic = null; // semantic (Method B) requires the Claude key
   return reading;
 }
 
@@ -193,14 +205,14 @@ Return ONLY a JSON object with exactly these fields:
   "loveStyle": "one warm sentence about how they connect in love",
   "vibe": "a short phrase",
   "energy": { "warmth":0-100, "openness":0-100, "intensity":0-100, "groundedness":0-100, "playfulness":0-100, "depth":0-100, "spark":0-100 },
-  "chakras": [
-    {"key":"root","development":0-100,"vibrancy":0-100},
-    {"key":"sacral","development":0-100,"vibrancy":0-100},
-    {"key":"solar","development":0-100,"vibrancy":0-100},
-    {"key":"heart","development":0-100,"vibrancy":0-100},
-    {"key":"throat","development":0-100,"vibrancy":0-100},
-    {"key":"thirdEye","development":0-100,"vibrancy":0-100},
-    {"key":"crown","development":0-100,"vibrancy":0-100}
+  "chakrasSemantic": [
+    {"key":"root","development":0-100,"vibrancy":0-100,"quality":"one word"},
+    {"key":"sacral","development":0-100,"vibrancy":0-100,"quality":"one word"},
+    {"key":"solar","development":0-100,"vibrancy":0-100,"quality":"one word"},
+    {"key":"heart","development":0-100,"vibrancy":0-100,"quality":"one word"},
+    {"key":"throat","development":0-100,"vibrancy":0-100,"quality":"one word"},
+    {"key":"thirdEye","development":0-100,"vibrancy":0-100,"quality":"one word"},
+    {"key":"crown","development":0-100,"vibrancy":0-100,"quality":"one word"}
   ],
   "elements": {
     "fire":{"mastery":0-100,"balance":0-100},
@@ -210,7 +222,15 @@ Return ONLY a JSON object with exactly these fields:
     "space":{"mastery":0-100,"balance":0-100}
   }
 }
-development = how awakened/cultivated that chakra reads; vibrancy = how brightly it is glowing right now.
+For "chakrasSemantic", read the person's ENERGY ONLY from their face, expression, gaze and posture/body-language. DO NOT base it on the colours, clothing, or background of the image. Score each chakra by these felt qualities:
+- root = groundedness, stability, physical presence, security
+- sacral = emotional flow, creativity, sensuality, playfulness
+- solar = confidence, will, personal power, drive
+- heart = warmth, compassion, openness, capacity for love
+- throat = self-expression, communication, authenticity
+- thirdEye = insight, intuition, perceptiveness, imagination
+- crown = presence, awareness, serenity, spiritual openness
+development = how cultivated/awakened that chakra reads; vibrancy = how active it is right now; quality = a single evocative word.
 mastery = command of that element's qualities; balance = how harmonized it is with the rest.`;
 
 async function generateReading(buffer, mediaType = 'image/jpeg') {
@@ -237,7 +257,8 @@ async function generateReading(buffer, mediaType = 'image/jpeg') {
     reading.auraColors = (reading.auraColors && reading.auraColors.length) ? reading.auraColors.slice(0, 2) : ['#7C4DFF', '#FF6FB5'];
     reading._source = 'claude';
     const ex = colorExtras(buffer, mediaType) || profileExtras(seed);
-    reading.chakras = ex.chakras; reading.elements = ex.elements;
+    reading.chakras = ex.chakras; reading.elements = ex.elements;       // Method A (colour)
+    reading.chakrasSemantic = coerceSemantic(reading.chakrasSemantic);  // Method B (face/vibe)
     return reading;
   } catch (e) {
     console.error('aura reading fell back to mock:', e.message);

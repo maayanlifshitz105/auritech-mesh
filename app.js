@@ -26,18 +26,32 @@ function avatar(u, size){
   const img = u.photo ? `<img src="${u.photo}" loading="lazy" onerror="this.remove()" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">` : '';
   return `<div class="avatar" style="position:relative;overflow:hidden;width:${size}px;height:${size}px;background:${grad(c)};font-size:${Math.round(size*0.4)}px">${initial}${img}</div>`;
 }
-function bar2(color,a,b){
-  return `<div class="ctrack"><div class="cfill" style="width:${a}%;background:${color}"></div></div>`+
-         `<div class="ctrack vib"><div class="cfill" style="width:${b}%;background:${color};opacity:.5"></div></div>`;
+function pearson(a,b){const n=a.length;if(!n)return 0;const ma=a.reduce((x,y)=>x+y,0)/n,mb=b.reduce((x,y)=>x+y,0)/n;let nu=0,da=0,db=0;for(let i=0;i<n;i++){const x=a[i]-ma,y=b[i]-mb;nu+=x*y;da+=x*x;db+=y*y;}return(da&&db)?nu/Math.sqrt(da*db):0;}
+function dualRow(c, sem){
+  const second = sem ? {tag:'semantic', val:sem.development, op:.9} : {tag:'vibrancy', val:c.vibrancy, op:.5};
+  return `<div class="chakra2">
+    <div class="clab"><span class="cdot" style="background:${c.color}"></span><b>${esc(c.name)}</b>${sem&&sem.quality?`<span class="qual">${esc(sem.quality)}</span>`:''}</div>
+    <div class="drow"><span class="dtag">color</span><div class="ctrack"><div class="cfill" style="width:${c.development}%;background:${c.color}"></div></div><span class="dval">${c.development}</span></div>
+    <div class="drow"><span class="dtag">${second.tag}</span><div class="ctrack"><div class="cfill" style="width:${second.val}%;background:${c.color};opacity:${second.op}"></div></div><span class="dval">${second.val}</span></div>
+  </div>`;
 }
 function auraDetail(r){
-  const chakras=r.chakras||[], elements=r.elements||[];
+  const col=r.chakras||[], sem=r.chakrasSemantic||null, els=r.elements||[];
+  let align='';
+  if(sem&&sem.length){
+    const rr=pearson(col.map(c=>c.development), sem.map(c=>c.development));
+    const pct=Math.round((rr+1)/2*100);
+    const v=rr>0.6?'strong alignment ✦':rr>0.3?'moderate alignment':rr>0?'weak alignment':'they diverge';
+    align=`<div class="align"><b>Color ↔ Semantic alignment ${pct}%</b> <span class="muted">r=${rr.toFixed(2)} · ${v}</span></div>`;
+  }
   return `
-  ${chakras.length?`<div class="section"><h3>Chakra profile <span class="legend">development · vibrancy</span></h3>
-    ${chakras.map(c=>`<div class="chakra"><div class="clab"><span class="cdot" style="background:${c.color}"></span><b>${esc(c.name)}</b><span class="muted clvl">${c.development} · ${c.vibrancy}</span></div>${bar2(c.color,c.development,c.vibrancy)}</div>`).join('')}
+  ${col.length?`<div class="section"><h3>Chakra profile <span class="legend">${sem&&sem.length?'color (math) vs semantic (AI)':'development · vibrancy'}</span></h3>
+    ${align}
+    ${col.map((c,i)=>dualRow(c, (sem&&sem.length)?sem[i]:null)).join('')}
+    ${(sem&&sem.length)?'':`<div class="muted hint">Semantic AI read is off — add your Claude key in Render to run the second method and compare.</div>`}
   </div>`:''}
-  ${elements.length?`<div class="section"><h3>Elemental balance <span class="legend">mastery · balance</span></h3>
-    <div class="elements">${elements.map(e=>`<div class="elem"><div class="eglyph">${e.glyph}</div><div class="ename">${esc(e.name)}</div><div class="etrack"><div class="efill" style="width:${e.mastery}%"></div></div><div class="etrack"><div class="efill alt" style="width:${e.balance}%"></div></div><div class="evals muted">${e.mastery} · ${e.balance}</div></div>`).join('')}</div>
+  ${els.length?`<div class="section"><h3>Elemental balance <span class="legend">mastery · balance</span></h3>
+    <div class="elements">${els.map(e=>`<div class="elem"><div class="eglyph">${e.glyph}</div><div class="ename">${esc(e.name)}</div><div class="etrack"><div class="efill" style="width:${e.mastery}%"></div></div><div class="etrack"><div class="efill alt" style="width:${e.balance}%"></div></div><div class="evals muted">${e.mastery} · ${e.balance}</div></div>`).join('')}</div>
   </div>`:''}`;
 }
 
