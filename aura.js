@@ -78,11 +78,11 @@ function wbScale(data, w, h) { // partial Shades-of-Gray (p=6), strength 0.6
   const nr = (sr / n) ** (1 / 6), ng = (sg / n) ** (1 / 6), nb = (sb / n) ** (1 / 6), gray = (nr + ng + nb) / 3, S = 0.6;
   return [1 + S * (gray / (nr + 1e-6) - 1), 1 + S * (gray / (ng + 1e-6) - 1), 1 + S * (gray / (nb + 1e-6) - 1)];
 }
-function colorExtras(buffer, mediaType) {
+function colorExtras(buffer, mediaType, opts = {}) {
   const img = decodeImage(buffer, mediaType);
   if (!img) return null;
   const { w, h, data } = img;
-  const sc = wbScale(data, w, h);                                   // (A) white balance
+  const sc = opts.blend ? [1, 1, 1] : wbScale(data, w, h);          // (A) white balance — skipped when aura blending is ON
   const x0 = Math.floor(w * 0.05), x1 = Math.floor(w * 0.95), y0 = Math.floor(h * 0.05), y1 = Math.floor(h * 0.95);
   const E = new Array(7).fill(0), VW = new Array(7).fill(0);
   let totalV = 0, totalSV = 0, n = 0; const SIG = 42, FLOOR = 8;
@@ -153,7 +153,7 @@ function coerceSemantic(arr) {
   });
 }
 
-function mockReading(buffer, mediaType = 'image/jpeg') {
+function mockReading(buffer, mediaType = 'image/jpeg', opts = {}) {
   const h = bytesFrom(buffer.toString('base64').slice(0, 64));
   const palette = pick(AURA_PALETTES, h[0]);
   const energy = {};
@@ -173,7 +173,7 @@ function mockReading(buffer, mediaType = 'image/jpeg') {
     energy,
     _source: 'mock'
   };
-  const ex = colorExtras(buffer, mediaType) || profileExtras(buffer.toString('base64').slice(0, 96));
+  const ex = colorExtras(buffer, mediaType, opts) || profileExtras(buffer.toString('base64').slice(0, 96));
   reading.chakras = ex.chakras; reading.elements = ex.elements;
   reading.chakrasSemantic = null; // semantic (Method B) requires the Claude key
   return reading;
@@ -233,9 +233,9 @@ For "chakrasSemantic", read the person's ENERGY ONLY from their face, expression
 development = how cultivated/awakened that chakra reads; vibrancy = how active it is right now; quality = a single evocative word.
 mastery = command of that element's qualities; balance = how harmonized it is with the rest.`;
 
-async function generateReading(buffer, mediaType = 'image/jpeg') {
+async function generateReading(buffer, mediaType = 'image/jpeg', opts = {}) {
   const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return mockReading(buffer, mediaType);
+  if (!key) return mockReading(buffer, mediaType, opts);
   const seed = buffer.toString('base64').slice(0, 96);
   try {
     const resp = await fetch('https://api.anthropic.com/v1/messages', {
@@ -256,13 +256,13 @@ async function generateReading(buffer, mediaType = 'image/jpeg') {
     ENERGY_KEYS.forEach(k => { if (typeof reading.energy[k] !== 'number') reading.energy[k] = 50; });
     reading.auraColors = (reading.auraColors && reading.auraColors.length) ? reading.auraColors.slice(0, 2) : ['#7C4DFF', '#FF6FB5'];
     reading._source = 'claude';
-    const ex = colorExtras(buffer, mediaType) || profileExtras(seed);
+    const ex = colorExtras(buffer, mediaType, opts) || profileExtras(seed);
     reading.chakras = ex.chakras; reading.elements = ex.elements;       // Method A (colour)
     reading.chakrasSemantic = coerceSemantic(reading.chakrasSemantic);  // Method B (face/vibe)
     return reading;
   } catch (e) {
     console.error('aura reading fell back to mock:', e.message);
-    return mockReading(buffer, mediaType);
+    return mockReading(buffer, mediaType, opts);
   }
 }
 

@@ -3,6 +3,7 @@ let token = localStorage.getItem('am_token');
 let me = null;
 let chatTimer = null;
 const root = document.getElementById('app');
+const AURA_BLENDING = true; // ON = keep external light + clothes + background as aura colours; OFF = calibrated skin/hair/eyes only
 
 const ENERGY = ['warmth','openness','intensity','groundedness','playfulness','depth','spark'];
 
@@ -182,10 +183,11 @@ function renderScan(){
     if(!file.files[0]) return;
     circle.innerHTML += `<div class="scanline"></div>`;
     scanBtn.disabled=true; scanBtn.classList.add('spin');
-    scanBtn.textContent='Isolating skin, hair & eyes…';
-    const cutout = await segmentHead(file.files[0]);
+    let cutout;
+    if(AURA_BLENDING){ scanBtn.textContent='Blending your aura…'; cutout=file.files[0]; }
+    else { scanBtn.textContent='Isolating skin, hair & eyes…'; cutout=await segmentHead(file.files[0]); }
     scanBtn.textContent='Reading your aura…';
-    const fd=new FormData(); fd.append('photo', cutout);
+    const fd=new FormData(); fd.append('blend', AURA_BLENDING?'on':'off'); fd.append('photo', cutout);
     try{
       const { user } = await api('/scan',{method:'POST',body:fd});
       me=user; revealReading(me.reading, ()=>renderMain('discover'));

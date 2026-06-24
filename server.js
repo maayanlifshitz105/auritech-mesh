@@ -103,7 +103,7 @@ app.post('/api/scan', auth, upload.single('photo'), async (req, res) => {
   try {
     const buf = fs.readFileSync(req.file.path);
     const mediaType = req.file.mimetype || 'image/jpeg';
-    const reading = await generateReading(buf, mediaType);
+    const reading = await generateReading(buf, mediaType, { blend: !!(req.body && req.body.blend === 'on') });
     req.user.photo = '/uploads/' + path.basename(req.file.path);
     req.user.reading = reading;
     save();
