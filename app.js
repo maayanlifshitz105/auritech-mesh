@@ -3,7 +3,7 @@ let token = localStorage.getItem('am_token');
 let me = null;
 let chatTimer = null;
 const root = document.getElementById('app');
-const AURA_BLENDING = true; // ON = keep external light + clothes + background as aura colours; OFF = calibrated skin/hair/eyes only
+const AURA_BLENDING = false; // ON = keep external light + clothes + background as aura colours; OFF = calibrated skin/hair/eyes only
 
 const ENERGY = ['warmth','openness','intensity','groundedness','playfulness','depth','spark'];
 
