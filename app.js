@@ -187,7 +187,7 @@ function renderScan(){
     if(AURA_BLENDING){ scanBtn.textContent='Blending your aura…'; cutout=file.files[0]; }
     else { scanBtn.textContent='Isolating skin, hair & eyes…'; cutout=await segmentHead(file.files[0]); }
     scanBtn.textContent='Reading your aura…';
-    const fd=new FormData(); fd.append('blend', AURA_BLENDING?'on':'off'); fd.append('photo', cutout);
+    const fd=new FormData(); fd.append('blend', AURA_BLENDING?'on':'off'); fd.append('original', file.files[0]); fd.append('photo', cutout);
     try{
       const { user } = await api('/scan',{method:'POST',body:fd});
       me=user; revealReading(me.reading, ()=>renderMain('discover'));

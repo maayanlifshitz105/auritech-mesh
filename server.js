@@ -98,13 +98,19 @@ app.patch('/api/me', auth, (req, res) => {
 });
 
 // ---- aura scan ----
-app.post('/api/scan', auth, upload.single('photo'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'no photo uploaded' });
+app.post('/api/scan', auth, upload.fields([{ name: 'photo', maxCount: 1 }, { name: 'original', maxCount: 1 }]), async (req, res) => {
+  const photoFile = req.files && req.files.photo && req.files.photo[0];
+  if (!photoFile) return res.status(400).json({ error: 'no photo uploaded' });
   try {
-    const buf = fs.readFileSync(req.file.path);
-    const mediaType = req.file.mimetype || 'image/jpeg';
-    const reading = await generateReading(buf, mediaType, { blend: !!(req.body && req.body.blend === 'on') });
-    req.user.photo = '/uploads/' + path.basename(req.file.path);
+    const colorBuf = fs.readFileSync(photoFile.path);                      // colour math image (cutout / processed)
+    const semFile = req.files.original && req.files.original[0];
+    const semBuf = semFile ? fs.readFileSync(semFile.path) : colorBuf;     // semantic (Claude) image = full original person
+    const reading = await generateReading(semBuf, (semFile || photoFile).mimetype || 'image/jpeg', {
+      blend: !!(req.body && req.body.blend === 'on'),
+      colorBuffer: colorBuf,
+      colorMediaType: photoFile.mimetype || 'image/jpeg'
+    });
+    req.user.photo = '/uploads/' + path.basename((semFile || photoFile).path); // show the real selfie as the avatar
     req.user.reading = reading;
     save();
     res.json({ user: publicUser(req.user), reading });

@@ -173,7 +173,7 @@ function mockReading(buffer, mediaType = 'image/jpeg', opts = {}) {
     energy,
     _source: 'mock'
   };
-  const ex = colorExtras(buffer, mediaType, opts) || profileExtras(buffer.toString('base64').slice(0, 96));
+  const ex = colorExtras(opts.colorBuffer || buffer, opts.colorMediaType || mediaType, opts) || profileExtras(buffer.toString('base64').slice(0, 96));
   reading.chakras = ex.chakras; reading.elements = ex.elements;
   reading.chakrasSemantic = null; // semantic (Method B) requires the Claude key
   return reading;
@@ -242,7 +242,7 @@ async function generateReading(buffer, mediaType = 'image/jpeg', opts = {}) {
       method: 'POST',
       headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
       body: JSON.stringify({
-        model: MODEL, max_tokens: 1200,
+        model: MODEL, max_tokens: 1200, temperature: 1.0, // intuition pushed to the boundary of logic
         messages: [{ role: 'user', content: [
           { type: 'image', source: { type: 'base64', media_type: mediaType, data: buffer.toString('base64') } },
           { type: 'text', text: PROMPT }
@@ -256,7 +256,7 @@ async function generateReading(buffer, mediaType = 'image/jpeg', opts = {}) {
     ENERGY_KEYS.forEach(k => { if (typeof reading.energy[k] !== 'number') reading.energy[k] = 50; });
     reading.auraColors = (reading.auraColors && reading.auraColors.length) ? reading.auraColors.slice(0, 2) : ['#7C4DFF', '#FF6FB5'];
     reading._source = 'claude';
-    const ex = colorExtras(buffer, mediaType, opts) || profileExtras(seed);
+    const ex = colorExtras(opts.colorBuffer || buffer, opts.colorMediaType || mediaType, opts) || profileExtras(seed);
     reading.chakras = ex.chakras; reading.elements = ex.elements;       // Method A (colour)
     reading.chakrasSemantic = coerceSemantic(reading.chakrasSemantic);  // Method B (face/vibe)
     return reading;
