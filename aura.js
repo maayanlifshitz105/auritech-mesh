@@ -170,6 +170,7 @@ function mockReading(buffer, mediaType = 'image/jpeg', opts = {}) {
     strengths: [traits[0], traits[2], traits[4]],
     loveStyle: energy.warmth > 60 ? 'You love openly and generously, and you make people feel chosen.' : 'You love thoughtfully and steadily, building trust before you fully open up.',
     vibe: `${palette.colors[0]} meets ${palette.colors[1]}`,
+    fullAnalysis: `You move through the world as someone ${traits[0]} and ${traits[1]}, with a ${traits[3]} way of meeting people. There is a ${energy.depth>60?'deep, reflective':'light, open'} current under your surface, and people tend to feel it before you say a word.\n\nYour gifts show up as ${traits[0]}, ${traits[2]} and ${traits[4]} energy — you lead with ${energy.warmth>60?'warmth and generosity':'steadiness and care'}, and you ${energy.openness>60?'open quickly to new connection':'open slowly, once trust is earned'}. Your growth edge is letting others hold space for you the way you hold it for them.\n\nIn love you ${energy.warmth>60?'give openly and make people feel chosen':'build trust first, then give completely'}. Your aura reads as ${palette.name.toLowerCase()} — ${traits[1]} and alive — and the chakras that glow brightest carry your ${traits[0]} nature into every room you enter.`,
     energy,
     _source: 'mock'
   };
@@ -203,6 +204,7 @@ Return ONLY a JSON object with exactly these fields:
   "personality": ["trait","trait","trait","trait","trait"],
   "strengths": ["strength","strength","strength"],
   "loveStyle": "one warm sentence about how they connect in love",
+  "fullAnalysis": "3-4 rich paragraphs (separated by blank lines) of in-depth personality + aura analysis in second person — their temperament, emotional landscape, gifts, growth edges, how they love and connect, and what their dominant chakras and elements reveal about them. Warm, specific, never clinical.",
   "vibe": "a short phrase",
   "energy": { "warmth":0-100, "openness":0-100, "intensity":0-100, "groundedness":0-100, "playfulness":0-100, "depth":0-100, "spark":0-100 },
   "chakrasSemantic": [
@@ -259,6 +261,7 @@ async function generateReading(buffer, mediaType = 'image/jpeg', opts = {}) {
     const ex = colorExtras(opts.colorBuffer || buffer, opts.colorMediaType || mediaType, opts) || profileExtras(seed);
     reading.chakras = ex.chakras; reading.elements = ex.elements;       // Method A (colour)
     reading.chakrasSemantic = coerceSemantic(reading.chakrasSemantic);  // Method B (face/vibe)
+    reading.fullAnalysis = (typeof reading.fullAnalysis === 'string' && reading.fullAnalysis.trim()) ? reading.fullAnalysis : (reading.summary || '');
     return reading;
   } catch (e) {
     console.error('aura reading fell back to mock:', e.message);

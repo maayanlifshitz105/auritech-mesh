@@ -20,6 +20,7 @@ async function api(path, opts = {}) {
   return data;
 }
 function esc(s){ return (s||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function paras(text){ const NL=String.fromCharCode(10); return String(text||'').split('\n').join(NL).split(NL).map(s=>s.trim()).filter(Boolean); }
 function grad(colors){ const c = (colors&&colors.length>=2)?colors:['#7c4dff','#ff6fb5']; return `linear-gradient(135deg,${c[0]},${c[1]})`; }
 function avatar(u, size){
   const c = u.reading ? u.reading.auraColors : null;
@@ -305,6 +306,7 @@ function renderProfile(){
     <div class="auraName" style="text-align:center">${esc(r.auraName)}</div>
     <div class="section"><h3>Aura reading</h3><p style="margin:8px 0 0">${esc(r.summary||'')}</p>
       <div style="margin-top:8px">${(r.personality||[]).map(t=>`<span class="chip">${esc(t)}</span>`).join('')}</div></div>
+    ${r.fullAnalysis?`<div class="section"><h3>Full personality &amp; aura analysis</h3>${paras(r.fullAnalysis).map(p=>`<p style="margin:10px 0 0;line-height:1.55">${esc(p)}</p>`).join('')}</div>`:''}
     <div class="section"><h3>Love style</h3><p style="margin:8px 0 0">${esc(r.loveStyle||'')}</p></div>
     ${auraDetail(r)}
     <button class="btn alt" id="rescan">Re-scan my aura</button>
