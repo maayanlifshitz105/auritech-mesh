@@ -55,6 +55,45 @@ function auraDetail(r){
   </div>`:''}`;
 }
 
+// ---- Professional head segmentation (MediaPipe Selfie Multiclass) ----
+// Keeps only hair + body-skin + face-skin (incl. eyes); grays out clothes + background,
+// so the colour math reads ONLY the person. Falls back to the full image if unavailable.
+let _segmenter = null, _segReady = null;
+function loadSegmenter(){
+  if (_segmenter) return Promise.resolve(_segmenter);
+  if (!_segReady) _segReady = (async () => {
+    const v = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
+    const fileset = await v.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+    _segmenter = await v.ImageSegmenter.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite' },
+      runningMode: 'IMAGE', outputCategoryMask: true, outputConfidenceMasks: false });
+    return _segmenter;
+  })();
+  return _segReady;
+}
+async function segmentHead(file){
+  try{
+    const seg = await loadSegmenter();
+    const img = await createImageBitmap(file);
+    const scale = Math.min(1, 512 / Math.max(img.width, img.height));
+    const cw = Math.max(1, Math.round(img.width * scale)), ch = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement('canvas'); canvas.width = cw; canvas.height = ch;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true }); ctx.drawImage(img, 0, 0, cw, ch);
+    const res = seg.segment(canvas);
+    const mask = res.categoryMask, mw = mask.width, mh = mask.height, md = mask.getAsUint8Array();
+    const id = ctx.getImageData(0, 0, cw, ch), d = id.data; let kept = 0;
+    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+      const cat = md[Math.min(mh-1,(y*mh/ch)|0)*mw + Math.min(mw-1,(x*mw/cw)|0)];
+      if (cat===1 || cat===2 || cat===3) kept++;            // hair, body-skin, face-skin
+      else { const p=(y*cw+x)*4; d[p]=128; d[p+1]=128; d[p+2]=128; }  // gray out clothes + background
+    }
+    mask.close();
+    if (kept < cw*ch*0.02) return file;                      // found ~nothing -> use full image
+    ctx.putImageData(id, 0, 0);
+    return await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.92));
+  } catch(e){ console.warn('head segmentation unavailable, using full image:', e); return file; }
+}
+
 function boot(){
   if (!token) return renderAuth('login');
   api('/me').then(({user}) => { me = user; me.reading ? renderMain('discover') : renderOnboarding(); })
@@ -142,8 +181,11 @@ function renderScan(){
   scanBtn.onclick = async () => {
     if(!file.files[0]) return;
     circle.innerHTML += `<div class="scanline"></div>`;
-    scanBtn.textContent='Reading your aura…'; scanBtn.disabled=true; scanBtn.classList.add('spin');
-    const fd=new FormData(); fd.append('photo', file.files[0]);
+    scanBtn.disabled=true; scanBtn.classList.add('spin');
+    scanBtn.textContent='Isolating skin, hair & eyes…';
+    const cutout = await segmentHead(file.files[0]);
+    scanBtn.textContent='Reading your aura…';
+    const fd=new FormData(); fd.append('photo', cutout);
     try{
       const { user } = await api('/scan',{method:'POST',body:fd});
       me=user; revealReading(me.reading, ()=>renderMain('discover'));
